@@ -1,0 +1,5 @@
+{
+  "ConnectionStrings": {
+    "SolutionForBusinessDb": "Server=.;Database=SolutionForBusinessDb;Trusted_Connection=True;"
+  }
+}
