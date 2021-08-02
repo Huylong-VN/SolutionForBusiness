@@ -1,18 +1,10 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Logging;
-using Microsoft.IdentityModel.Tokens;
 using SolutionForBusiness.Application.Users;
+using SolutionForBusiness.ViewModels.Roles;
 using SolutionForBusiness.ViewModels.Users;
 using System;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SolutionForBusiness.BackEndApi.Controllers
@@ -23,55 +15,32 @@ namespace SolutionForBusiness.BackEndApi.Controllers
     public class UsersController : ControllerBase
     {
         public readonly IUserService _userService;
-        private readonly IConfiguration _configuration;
 
-        public UsersController(IUserService userService, IConfiguration configuration)
+        public UsersController(IUserService userService)
         {
-            _configuration = configuration;
             _userService = userService;
         }
 
         [HttpPost("authenticate")]
         [AllowAnonymous]
-        public async Task<ActionResult> Authenticate([FromHeader] LoginRequest request)
+        public async Task<ActionResult> Authenticate([FromBody] LoginRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState.Values);
 
             var result = await _userService.Authenticate(request);
-            if (result.ResultObj == null) return Ok(result.Message);
-            var userPrincipal = this.ValidateToken(result.ResultObj.Token);
-            var authProperties = new AuthenticationProperties
-            {
-                ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10),
-                IsPersistent = false
-            };
-            HttpContext.Session.SetString("Token", result.ResultObj.Token);
-            await HttpContext.SignInAsync(
-                        CookieAuthenticationDefaults.AuthenticationScheme,
-                        userPrincipal,
-                        authProperties);
+            if (result.ResultObj == null) return BadRequest(result.Message);
             return Ok(result.ResultObj);
         }
 
-        private ClaimsPrincipal ValidateToken(string jwtToken)
+        [HttpGet("paging")]
+        public async Task<IActionResult> GetAllPaging([FromHeader] GetUserPagingRequest request)
         {
-            IdentityModelEventSource.ShowPII = true;
-
-            SecurityToken validatedToken;
-            TokenValidationParameters validationParameters = new TokenValidationParameters();
-
-            validationParameters.ValidateLifetime = true;
-
-            validationParameters.ValidAudience = _configuration["Tokens:Issuer"];
-            validationParameters.ValidIssuer = _configuration["Tokens:Issuer"];
-            validationParameters.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Tokens:Key"]));
-
-            ClaimsPrincipal principal = new JwtSecurityTokenHandler().ValidateToken(jwtToken, validationParameters, out validatedToken);
-
-            return principal;
+            var result = await _userService.GetUserPaging(request);
+            return Ok(result);
         }
 
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -80,11 +49,39 @@ namespace SolutionForBusiness.BackEndApi.Controllers
             return Ok(result.Message);
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid Id)
+        [HttpDelete("")]
+        public async Task<IActionResult> Delete(Guid userId, Guid Id)
         {
-            var user = await _userService.Delete(Id);
-            if (user.IsSuccessed) return Ok(user);
+            var userCheck = await _userService.getRoleUser(userId);
+            if (userCheck.IsSuccessed)
+            {
+                var delete = await _userService.Delete(Id);
+                return Ok(delete);
+            }
+            return BadRequest(userCheck.Message);
+        }
+
+        [HttpPut]
+        public async Task<IActionResult> Update(Guid userId, [FromBody] UpdateRequest request)
+        {
+            var userCheck = await _userService.getRoleUser(userId);
+            if (userCheck.IsSuccessed)
+            {
+                var user = await _userService.Update(request);
+                if (user.IsSuccessed) return Ok(user);
+            }
+            return BadRequest();
+        }
+
+        [HttpPost("rolesassign")]
+        public async Task<IActionResult> RoleAssign(Guid userId, Guid Id, RoleAssignRequest request)
+        {
+            var userCheck = await _userService.getRoleUser(userId);
+            if (userCheck.IsSuccessed)
+            {
+                var result = await _userService.RoleAssign(Id, request);
+                if (result.IsSuccessed) return Ok(result);
+            }
             return BadRequest();
         }
     }

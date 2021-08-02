@@ -10,7 +10,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SolutionForBusiness.Application.Products
@@ -42,7 +41,8 @@ namespace SolutionForBusiness.Application.Products
                 Price = request.Price,
                 Description = request.Description,
                 Image = await SaveFile(request.Image),
-                CategoryId = request.CategoryId
+                CategoryId = request.CategoryId,
+                DateCreated = DateTime.Now
             };
 
             await _context.Products.AddAsync(product);
@@ -53,8 +53,9 @@ namespace SolutionForBusiness.Application.Products
         public async Task<ApiResult<bool>> Delete(int Id)
         {
             var product = await _context.Products.FindAsync(Id);
-            if (product != null) return new ApiErrorResult<bool>("Không tìm thấy sản phẩm");
-            await _storageService.DeleteFileAsync(product.Image);
+            if (product == null) return new ApiErrorResult<bool>("Không tìm thấy sản phẩm");
+            if (_storageService.GetFileUrl(product.Image) == null) await _storageService.DeleteFileAsync(product.Image);
+
             _context.Products.Remove(product);
             await _context.SaveChangesAsync();
             return new ApiSuccessResult<bool>();
