@@ -5,13 +5,26 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Views\NewFolder\**" />
+    <Compile Remove="Views\user-content\**" />
+    <Content Remove="Views\NewFolder\**" />
+    <Content Remove="Views\user-content\**" />
+    <EmbeddedResource Remove="Views\NewFolder\**" />
+    <EmbeddedResource Remove="Views\user-content\**" />
+    <None Remove="Views\NewFolder\**" />
+    <None Remove="Views\user-content\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\SolutionForBusiness.Application\SolutionForBusiness.Application.csproj" />
     <ProjectReference Include="..\SolutionForBusiness.Data\SolutionForBusiness.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="5.0.8" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.2.0" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="5.0.2" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.1.4" />
   </ItemGroup>
 
 </Project>

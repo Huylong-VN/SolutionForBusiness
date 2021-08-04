@@ -5,8 +5,10 @@ using Microsoft.IdentityModel.Tokens;
 using SolutionForBusiness.Application.Common;
 using SolutionForBusiness.Data.Entities;
 using SolutionForBusiness.ViewModels.Common;
+using SolutionForBusiness.ViewModels.Roles;
 using SolutionForBusiness.ViewModels.Users;
 using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
@@ -33,7 +35,8 @@ namespace SolutionForBusiness.Application.Users
         public async Task<ApiResult<UserVM>> Authenticate(LoginRequest request)
         {
             var user = await _usermanage.FindByNameAsync(request.UserName);
-            if (user == null) new ApiErrorResult<string>("Tài khoản không tồn tại");
+            if (user == null) return new ApiErrorResult<UserVM>("Tài khoản không tồn tại");
+            var role = await _usermanage.GetRolesAsync(user);
 
             var result = await _signInManager.PasswordSignInAsync(user, request.Password, true, true);
             if (!result.Succeeded) return new ApiErrorResult<UserVM>("Đăng Nhập thất bại");
@@ -53,13 +56,15 @@ namespace SolutionForBusiness.Application.Users
 
             return new ApiSuccessResult<UserVM>(new UserVM
             {
+                Id = user.Id,
                 UserName = user.UserName,
                 FirstName = user.FirstName,
                 Token = new JwtSecurityTokenHandler().WriteToken(token),
                 LastName = user.LastName,
                 Dob = user.Dob,
                 Email = user.Email,
-                PhoneNumber = user.PhoneNumber
+                PhoneNumber = user.PhoneNumber,
+                Role = role,
             });
         }
 
@@ -71,7 +76,7 @@ namespace SolutionForBusiness.Application.Users
             return new ApiSuccessResult<bool>();
         }
 
-        public async Task<PagedResult<UserVM>> GetProductPaging(GetUserPagingRequest request)
+        public async Task<PagedResult<UserVM>> GetUserPaging(GetUserPagingRequest request)
         {
             var query = _usermanage.Users;
             if (!string.IsNullOrEmpty(request.Keyword))
@@ -84,11 +89,13 @@ namespace SolutionForBusiness.Application.Users
 
             var data = await query.Skip((request.PageIndex - 1) * request.PageSize).OrderBy(x => x.FirstName).Take(request.PageSize).Select(x => new UserVM()
             {
+                Id = x.Id,
                 FirstName = x.FirstName,
                 LastName = x.LastName,
                 Dob = x.Dob,
                 Email = x.Email,
                 PhoneNumber = x.PhoneNumber,
+                UserName=x.UserName
             }).ToListAsync();
             var pagedResult = new PagedResult<UserVM>()
             {
@@ -102,8 +109,8 @@ namespace SolutionForBusiness.Application.Users
 
         public async Task<ApiResult<bool>> Register(RegisterRequest request)
         {
-            if (await _usermanage.FindByNameAsync(request.UserName) == null) return new ApiErrorResult<bool>("Tên tài khoản đã tồn tại");
-            if (await _usermanage.FindByEmailAsync(request.Email) == null) return new ApiErrorResult<bool>("Email đã tồn tại");
+            if (await _usermanage.FindByNameAsync(request.UserName) != null) return new ApiErrorResult<bool>("Tên tài khoản đã tồn tại");
+            if (await _usermanage.FindByEmailAsync(request.Email) != null) return new ApiErrorResult<bool>("Email đã tồn tại");
             var user = new User()
             {
                 UserName = request.UserName,
@@ -117,10 +124,36 @@ namespace SolutionForBusiness.Application.Users
             return new ApiErrorResult<bool>("Đăng kí thất bại");
         }
 
-        public async Task<ApiResult<bool>> Update(Guid Id, UpdateRequest request)
+        public async Task<ApiResult<bool>> RoleAssign(Guid Id, RoleAssignRequest request)
         {
-            if (await _usermanage.Users.AnyAsync(x => x.Email == request.Email && x.Id != Id)) return new ApiErrorResult<bool>("Email đã tồn tại");
             var user = await _usermanage.FindByIdAsync(Id.ToString());
+            if (user == null) return new ApiErrorResult<bool>("Tài khoản không tồn tại");
+
+            var removedRoles = request.Roles.Where(x => x.Selected == false).Select(x => x.Name).ToList();
+            foreach (var roleName in removedRoles)
+            {
+                if (await _usermanage.IsInRoleAsync(user, roleName) == true)
+                {
+                    await _usermanage.RemoveFromRoleAsync(user, roleName);
+                }
+            }
+            await _usermanage.RemoveFromRolesAsync(user, removedRoles);
+
+            var addRoles = request.Roles.Where(x => x.Selected).Select(x => x.Name).ToList();
+            foreach (var rolename in addRoles)
+            {
+                if (await _usermanage.IsInRoleAsync(user, rolename) == false)
+                {
+                    await _usermanage.AddToRoleAsync(user, rolename);
+                }
+            }
+            return new ApiResult<bool>();
+        }
+
+        public async Task<ApiResult<bool>> Update(UpdateRequest request)
+        {
+            if (await _usermanage.Users.AnyAsync(x => x.Email == request.Email && x.Id != request.Id)) return new ApiErrorResult<bool>("Email đã tồn tại");
+            var user = await _usermanage.FindByIdAsync(request.Id.ToString());
             user.FirstName = request.FirstName;
             user.LastName = request.LastName;
             user.Email = request.Email;
@@ -128,7 +161,23 @@ namespace SolutionForBusiness.Application.Users
             user.PhoneNumber = request.Phone;
             var result = await _usermanage.UpdateAsync(user);
             if (result.Succeeded) return new ApiSuccessResult<bool>();
-            return new ApiErrorResult<bool>("Cập nhật thất bại");
+            return new ApiErrorResult<bool>("Bạn chưa có quyền");
+        }
+
+        public async Task<ApiResult<bool>> getRoleUser(Guid userId)
+        {
+            var userRole = await _usermanage.FindByIdAsync(userId.ToString());
+            var role = await _usermanage.GetRolesAsync(userRole);
+            bool check = false;
+            foreach (var r in role)
+            {
+                if (r == "Administrator")
+                {
+                    check = true; break;
+                }
+            }
+            if (check == true) return new ApiSuccessResult<bool>();
+            return new ApiErrorResult<bool>("Bạn chưa có quyền");
         }
     }
 }

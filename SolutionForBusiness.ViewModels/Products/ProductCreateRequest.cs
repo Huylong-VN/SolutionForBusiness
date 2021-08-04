@@ -5,6 +5,7 @@ namespace SolutionForBusiness.ViewModels.Products
 {
     public class ProductCreateRequest
     {
+        public Guid userId { set; get; }
         public string Name { get; set; }
 
         public decimal Price { get; set; }

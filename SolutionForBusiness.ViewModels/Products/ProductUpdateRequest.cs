@@ -8,6 +8,7 @@ namespace SolutionForBusiness.ViewModels.Products
 {
     public class ProductUpdateRequest
     {
+        public Guid userId { set; get; }
         public int ProductId { get; set; }
         public string Name { get; set; }
 
