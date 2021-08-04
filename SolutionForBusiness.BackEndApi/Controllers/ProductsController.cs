@@ -23,6 +23,7 @@ namespace SolutionForBusiness.BackEndApi.Controllers
         }
 
         [HttpGet("paging")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAllPaging(string keyword, int? categoryId, int pageIndex = 1, int pageSize = 6)
         {
             var request = new GetProductPagingRequest()
